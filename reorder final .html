@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Chốt phiên bản này nhé</title>
+  <link href="https://fonts.googleapis.com/css2?family=Lexend&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  <style>
+    body {
+      font-family: 'Lexend', sans-serif;
+      margin: 40px;
+      background: #e6f0ff;
+      color: #333;
+    }
+    h2 {
+      color: #0066cc;
+    }
+    textarea, input, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 1px 1px 5px rgba(0,0,0,0.05);
+    }
+    button {
+      background: #0066cc;
+      color: white;
+      font-weight: bold;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #004d99;
+    }
+    .question-block, .incorrect-block {
+      border: 1px solid #ccc;
+      padding: 15px;
+      margin-bottom: 20px;
+      background: #ffffff;
+      border-radius: 12px;
+    }
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+    li {
+      padding: 10px;
+      background: #cce0ff;
+      border: 1px solid #99c2ff;
+      margin: 5px 0;
+      cursor: move;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    li:hover {
+      background: #b3d1ff;
+    }
+    .hidden {
+      display: none;
+    }
+    .history-controls button {
+      margin-right: 5px;
+    }
+    .correct {
+      background-color: #c8f7c5;
+    }
+    .incorrect {
+      background-color: #f7c5c5;
+    }
+  </style>
+</head>
+<body>
+
+<h2>Create a Reorder Test</h2>
+<div>
+  <label>Question:</label>
+  <input type="text" id="new-question" placeholder="Enter your question">
+
+  <label>Answers (in correct order, one per line):</label>
+  <textarea id="new-answers" rows="4" placeholder="Step 1\nStep 2\nStep 3"></textarea>
+
+  <button onclick="addQuestion()">Add Question</button>
+</div>
+
+<hr>
+
+<h2>Saved Questions <button onclick="toggleHistory()">Show/Hide</button></h2>
+<div id="question-history" class="hidden"></div>
+
+<hr>
+
+<h2>Try One Random Quiz</h2>
+<button onclick="startSingleQuiz()">Start One Random Question</button>
+<div id="quiz-area"></div>
+<p id="final-result"></p>
+
+<hr>
+
+<h2>Incorrect Attempts <button onclick="toggleIncorrect()">Show/Hide</button></h2>
+<div id="incorrect-history" class="hidden"></div>
+
+<script>
+let questions = JSON.parse(localStorage.getItem('questions')) || [];
+let incorrectAttempts = JSON.parse(localStorage.getItem('incorrectAttempts')) || [];
+
+function saveQuestions() {
+  localStorage.setItem('questions', JSON.stringify(questions));
+}
+function saveIncorrect() {
+  localStorage.setItem('incorrectAttempts', JSON.stringify(incorrectAttempts));
+}
+
+function toggleHistory() {
+  const el = document.getElementById('question-history');
+  el.classList.toggle('hidden');
+}
+
+function toggleIncorrect() {
+  const el = document.getElementById('incorrect-history');
+  el.classList.toggle('hidden');
+}
+
+function renderHistory() {
+  const container = document.getElementById('question-history');
+  container.innerHTML = '';
+  questions.forEach((q, index) => {
+    const block = document.createElement('div');
+    block.className = 'question-block';
+    block.innerHTML = `
+      <strong>${q.question}</strong>
+      <ul>${q.answers.map(a => `<li>${a}</li>`).join('')}</ul>
+      <div class="history-controls">
+        <button onclick="editQuestion(${index})">Edit</button>
+        <button onclick="deleteQuestion(${index})">Delete</button>
+      </div>
+    `;
+    container.appendChild(block);
+  });
+}
+
+function renderIncorrect() {
+  const container = document.getElementById('incorrect-history');
+  container.innerHTML = '';
+  incorrectAttempts.forEach((q, index) => {
+    const block = document.createElement('div');
+    block.className = 'incorrect-block';
+    block.innerHTML = `
+      <strong>${q.question}</strong>
+      <ul>${q.answers.map(a => `<li>${a}</li>`).join('')}</ul>
+    `;
+    container.appendChild(block);
+  });
+}
+
+function addQuestion() {
+  const qText = document.getElementById('new-question').value.trim();
+  const ans = document.getElementById('new-answers').value.trim().split('\n');
+  if (qText && ans.length > 1) {
+    questions.push({ question: qText, answers: ans });
+    saveQuestions();
+    renderHistory();
+    document.getElementById('new-question').value = '';
+    document.getElementById('new-answers').value = '';
+  }
+}
+
+function deleteQuestion(index) {
+  questions.splice(index, 1);
+  saveQuestions();
+  renderHistory();
+}
+
+function editQuestion(index) {
+  const q = questions[index];
+  document.getElementById('new-question').value = q.question;
+  document.getElementById('new-answers').value = q.answers.join('\n');
+  deleteQuestion(index);
+}
+
+function startSingleQuiz() {
+  if (questions.length === 0) return;
+  const randomIndex = Math.floor(Math.random() * questions.length);
+  const q = questions[randomIndex];
+  const shuffled = q.answers.slice().sort(() => Math.random() - 0.5);
+
+  const area = document.getElementById('quiz-area');
+  area.innerHTML = `<strong>${q.question}</strong><ul id="sortable"></ul><button onclick="checkAnswer(${randomIndex})">Submit</button>`;
+  const ul = document.getElementById('sortable');
+  shuffled.forEach(a => {
+    const li = document.createElement('li');
+    li.textContent = a;
+    ul.appendChild(li);
+  });
+
+  new Sortable(ul, {
+    animation: 150
+  });
+
+  document.getElementById('final-result').innerText = '';
+}
+
+function checkAnswer(index) {
+  const ul = document.getElementById('sortable');
+  const userAns = Array.from(ul.children).map(li => li.innerText);
+  const correctAns = questions[index].answers;
+  const isCorrect = JSON.stringify(userAns) === JSON.stringify(correctAns);
+  document.getElementById('final-result').innerText = isCorrect ? 'Correct!' : 'Incorrect. Try again!';
+  if (!isCorrect) {
+    incorrectAttempts.push({ question: questions[index].question, answers: correctAns });
+    saveIncorrect();
+    renderIncorrect();
+  }
+}
+
+renderHistory();
+renderIncorrect();
+</script>
+
+</body>
+</html>
